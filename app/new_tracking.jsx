@@ -1,5 +1,5 @@
 import { PaintStyle, Skia } from '@shopify/react-native-skia';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text } from 'react-native';
 import { ColorConversionCodes, ContourApproximationModes, DataTypes, ObjectType, OpenCV, RetrievalModes } from 'react-native-fast-opencv';
 import {
@@ -17,6 +17,9 @@ paint.setColor(Skia.Color('lime'));
 export function VisionCameraExample() {
 	const device = useCameraDevice('back');
 	const { hasPermission, requestPermission } = useCameraPermission();
+	// Optional minimum/maximum object detection size
+	const [minObjectSize, setMinObjectSize] = useState(null);
+	const [maxObjectSize, setMaxObjectSize] = useState(null);
  
 	const { resize } = useResizePlugin();
  
@@ -80,8 +83,9 @@ export function VisionCameraExample() {
 			const contour = OpenCV.copyObjectFromVector(contours, i);
 			const { value: area } = OpenCV.invoke('contourArea', contour, false);
 			
-			// The area is larger than the minimum
-			if (area > 3000) {
+			// The area is within the object detection size
+			// Default minimum of 3000, with no maximum
+			if (area >= (minObjectSize || 3000) && (!maxObjectSize || area <= maxObjectSize))  {
 				const rect = OpenCV.invoke('boundingRect', contour);
 				rectangles.push(rect);
 			}
