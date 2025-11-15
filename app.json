@@ -55,6 +55,14 @@
     "plugins": [
       "expo-router",
       [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26
+          }
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
@@ -81,7 +89,9 @@
           "savePhotosPermission": "Allow $(PRODUCT_NAME) to save photos",
           "isAccessMediaLocationEnabled": true
         }
-      ]
+      ],
+      "react-native-vision-camera",
+      "expo-build-properties"
     ],
     "experiments": {
       "typedRoutes": true,
