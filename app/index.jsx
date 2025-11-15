@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as MediaLibrary from 'expo-media-library';
+import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
   Alert,
@@ -19,6 +20,7 @@ export default function CaptureScreen() {
   const [photos, setPhotos] = useState([]);
   const [facing, setFacing] = useState('back');
   const cameraRef = useRef(null);
+  const router = useRouter();
 
   const takePhoto = async () => {
     if (cameraRef.current) {
@@ -31,10 +33,10 @@ export default function CaptureScreen() {
         }
         
         // Save to media library
-        await MediaLibrary.saveToLibraryAsync(photo.uri);
+        const asset = await MediaLibrary.createAssetAsync(photo.uri);
         
         // Add to state for display
-        setPhotos(prev => [photo, ...prev]);
+        setPhotos(prev => [asset, ...prev]);
         
         Alert.alert('Success', 'Photo saved to gallery!');
       } catch (error) {
@@ -118,12 +120,13 @@ export default function CaptureScreen() {
             renderItem={({ item, index }) => (
               <TouchableOpacity 
                 style={styles.thumbnailContainer}
+                onPress={()=> router.navigate(`/tracking?assetId=${item.id}`)}
                 onLongPress={() => deletePhoto(index)}
               >
                 <Image source={{ uri: item.uri }} style={styles.thumbnail} />
               </TouchableOpacity>
             )}
-            keyExtractor={(item, index) => index.toString()}
+            keyExtractor={(item)=>item.id}
             showsHorizontalScrollIndicator={false}
           />
         </View>
