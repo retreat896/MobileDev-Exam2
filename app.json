@@ -9,22 +9,13 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Allow $(PRODUCT_NAME) to access your camera"
+      }
     },
     "android": {
       "permissions": [
-        "CAMERA",
-        "READ_MEDIA_IMAGES",
-        "WRITE_EXTERNAL_STORAGE",
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
-        "android.permission.ACCESS_MEDIA_LOCATION",
-        "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.READ_MEDIA_VIDEO",
-        "android.permission.READ_MEDIA_AUDIO",
         "CAMERA",
         "READ_MEDIA_IMAGES",
         "WRITE_EXTERNAL_STORAGE",
@@ -45,7 +36,6 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false,
       "package": "com.retreat896.MobileDevExam2"
     },
     "web": {
@@ -81,11 +71,26 @@
           "savePhotosPermission": "Allow $(PRODUCT_NAME) to save photos",
           "isAccessMediaLocationEnabled": true
         }
-      ]
+      ],
+      [
+        "react-native-vision-camera",
+        {
+          "cameraPermission": "Allow camera access."
+        }
+      ],
+      "expo-build-properties",
+      "expo-font",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "99f38ecc-bf94-44a7-a975-fab1b17480a9"
+      }
     }
   }
 }
