@@ -15,6 +15,7 @@
       }
     },
     "android": {
+      "package": "com.retreat896.MobileDevExam2",
       "permissions": [
         "CAMERA",
         "READ_MEDIA_IMAGES",
@@ -35,14 +36,28 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "edgeToEdgeEnabled": true,
-      "package": "com.retreat896.MobileDevExam2"
+      "edgeToEdgeEnabled": true
     },
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      [
+        "expo-build-properties",
+          {
+            "android": {
+              "minSdkVersion": 26,
+              "compileSdkVersion": 35,
+              "targetSdkVersion": 35,
+              "ndkVersion": "27.1.12297006",
+              "buildToolsVersion": "35.0.0"
+            },
+            "ios": {
+              "deploymentTarget": "17.1" // Example for iOS deployment target
+            },
+          }
+      ],
       "expo-router",
       [
         "expo-splash-screen",
@@ -78,7 +93,6 @@
           "cameraPermission": "Allow camera access."
         }
       ],
-      "expo-build-properties",
       "expo-font",
       "expo-web-browser"
     ],
