@@ -3,26 +3,25 @@ import { useCallback, useEffect, useState } from "react";
 import { Alert, Dimensions, Linking, Pressable, StyleSheet, View } from "react-native";
 
 import {
-	ColorConversionCodes,
-	ContourApproximationModes,
-	DataTypes,
-	ObjectType,
-	OpenCV,
-	RetrievalModes,
+    ColorConversionCodes,
+    ContourApproximationModes,
+    DataTypes,
+    ObjectType,
+    OpenCV,
+    RetrievalModes
 } from "react-native-fast-opencv";
 
 import { Button, PaperProvider, Text } from 'react-native-paper';
-import { useSharedValue } from "react-native-reanimated";
 
 import {
-	Camera,
-	useCameraDevice,
-	useCameraPermission,
-	useSkiaFrameProcessor,
+    Camera,
+    useCameraDevice,
+    useCameraPermission,
+    useSkiaFrameProcessor,
 } from "react-native-vision-camera";
 
 import { useResizePlugin } from "vision-camera-resize-plugin";
-
+import { getTapPosition, setPixelData, setTapPosition } from './tracking.global';
 /**
  * Checks and re-prompts for camera permissions if denied
  * @returns Boolean indicating camera permission authorization
@@ -47,6 +46,9 @@ async function reRequestCamera() {
 }
 
 export default function VisionCameraExample() {
+    // Optional minimum/maximum object detection size
+    const [minObjectSize, setMinObjectSize] = useState(null);
+    const [maxObjectSize, setMaxObjectSize] = useState(null);
 	const device = useCameraDevice("back");
 	const [ready, setReady] = useState(false);
     const { hasPermission, requestPermission } = useCameraPermission();
@@ -55,12 +57,10 @@ export default function VisionCameraExample() {
   	const screenHeight = Dimensions.get('screen').height;
 	// Store frame dimensions
     // Reanimated shared values (for UI thread)
-    const tapPosition = useSharedValue(null);
-    const pixelData = useSharedValue(null);
-    const frameDimension = useSharedValue(null);
-    // Optional minimum/maximum object detection size
-    const [minObjectSize, setMinObjectSize] = useState(null);
-    const [maxObjectSize, setMaxObjectSize] = useState(null);
+	const { tapPosition, frameDimension, pixelData } = global;
+	// console.log(tapPosition);
+	// console.log(frameDimension);
+	// console.log(pixelData);
 	// Screen Tap Detection
 
     const { resize } = useResizePlugin();
@@ -73,6 +73,27 @@ export default function VisionCameraExample() {
 		})
     }, [requestPermission, hasPermission]);
 
+    function getPixelRGB(buf, x, y, width) {
+    "worklet";
+        // Ensure buf is a Uint8Array
+        const data = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+        
+        // Calculate index
+        const i = (y * width + x) * 3;
+        
+        // Bounds check
+        if (i < 0 || i + 2 >= data.length) {
+            console.log(`Pixel out of bounds: x=${x}, y=${y}, width=${width}, index=${i}, bufferLength=${data.length}`);
+            return { r: 0, g: 0, b: 0 };
+        }
+        
+        return {
+            r: data[i],
+            g: data[i + 1],
+            b: data[i + 2]
+        };
+    }
+
     const frameProcessor = useSkiaFrameProcessor(
 		useCallback((frame) => {
         "worklet";
@@ -80,20 +101,21 @@ export default function VisionCameraExample() {
         // Copy data at top, so the state can't change mid-run
         const minSize = minObjectSize;
         const maxSize = maxObjectSize;
+        const scale = 4;
 
         const paint = Skia.Paint();
         paint.setStyle(PaintStyle.Fill);
         paint.setColor(Skia.Color("lime"));
 
-        const height = frame.height / 4;
-        const width = frame.width / 4;
+        const height = frame.height / scale;
+        const width = frame.width / scale;
 
         const resized = resize(frame, {
             scale: {
                 width: width,
                 height: height,
             },
-            pixelFormat: "bgr",
+            pixelFormat: "rgb",
             dataType: "uint8",
         });
 
@@ -110,11 +132,11 @@ export default function VisionCameraExample() {
         const dst = OpenCV.createObject(ObjectType.Mat, 0, 0, DataTypes.CV_8U);
 
         // Color Lower and Upper bounds -- The range of acceptable values for the detected colors
-        const lowerBound = OpenCV.createObject(ObjectType.Scalar, 30, 60, 60);
-        const upperBound = OpenCV.createObject(ObjectType.Scalar, 50, 255, 255);
+        const lowerBound = OpenCV.createObject(ObjectType.Scalar, 6, 0.63*255, 0.57*255); // 30 60 60
+        const upperBound = OpenCV.createObject(ObjectType.Scalar, 15, 0.92*255, 0.8*255); // 50 255 255
         // Change the color format, using the conversion codes
-        // Convert from BGR to HSV
-        OpenCV.invoke("cvtColor", src, dst, ColorConversionCodes.COLOR_BGR2HSV);
+        // Convert from RGB to HSV
+        OpenCV.invoke("cvtColor", src, dst, ColorConversionCodes.COLOR_RGB2HSV);
         // Detect colors between the given range
         OpenCV.invoke("inRange", dst, lowerBound, upperBound, dst);
 
@@ -150,7 +172,7 @@ export default function VisionCameraExample() {
 
             // The area is within the object detection size
             // Default minimum of 3000, with no maximum
-            if (area >= (minSize || 100) && (!maxSize || area <= maxSize)) {
+            if (area >= (minSize || 5) && (!maxSize || area <= maxSize)) {
                 const rect = OpenCV.invoke("boundingRect", contour);
                 rectangles.push(rect);
             }
@@ -174,8 +196,20 @@ export default function VisionCameraExample() {
             );
         }
 
-        OpenCV.clearBuffers(); // REMEMBER TO CLEAN
-    }, [tapPosition, frameDimension, pixelData]));
+        OpenCV.clearBuffers(); // REMEMBER TO CLEAN        
+
+        getTapPosition().then((tap) => {
+            if (tap == null) return;
+
+            const scaledX = Math.floor(tap.x / scale);
+            const scaledY = Math.floor(tap.y / scale);
+
+            if (scaledX >= 0 && scaledX < width && scaledY >= 0 && scaledY < height) {
+                const color = getPixelRGB(resized, scaledX, scaledY, width);
+                setPixelData({ x: scaledX, y: scaledY, rgb: color})
+            }
+        });
+    }, []));
 
     // Camera permissions haven't been requested
     if (hasPermission == null) {
@@ -229,10 +263,11 @@ export default function VisionCameraExample() {
                 onPress={(e) => {
                     console.log("Tap Event Triggered");
                     const event = e.nativeEvent;
-                    tapPosition.value = { x: event.locationX, y: event.locationY };
+					setTapPosition({ x: event.locationX, y: event.locationY });
                 }}>
                 <Camera
                     style={StyleSheet.absoluteFill}
+                    pixelFormat="yuv"
                     device={device}
                     isActive={true}
                     frameProcessor={frameProcessor}
