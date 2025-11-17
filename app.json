@@ -55,7 +55,7 @@
             },
             "ios": {
               "deploymentTarget": "17.1" // Example for iOS deployment target
-            },
+            }
           }
       ],
       "expo-router",
@@ -90,7 +90,8 @@
       [
         "react-native-vision-camera",
         {
-          "cameraPermission": "Allow camera access."
+          "cameraPermission": "Allow camera access.",
+          "enable-frame-processors": true
         }
       ],
       "expo-font",
