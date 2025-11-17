@@ -1,5 +1,6 @@
+import { useIsFocused } from '@react-navigation/native';
 import { PaintStyle, Skia } from "@shopify/react-native-skia";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Dimensions, Linking, Pressable, StyleSheet, View } from "react-native";
 
 import {
@@ -13,15 +14,19 @@ import {
 
 import { Button, PaperProvider, Text } from 'react-native-paper';
 
+import convert from "color-convert";
 import {
     Camera,
     useCameraDevice,
     useCameraPermission,
-    useSkiaFrameProcessor,
+    useSkiaFrameProcessor
 } from "react-native-vision-camera";
-
 import { useResizePlugin } from "vision-camera-resize-plugin";
-import { getTapPosition, setPixelData, setTapPosition } from './tracking.global';
+import Filter from './Filter';
+import { colorFilter, colorFormat, getColorFilter, getColorFormat, setColorFilter, setTapPosition, tapPosition } from './tracking.global';
+
+const COLOR_THRESHOLD = 80;
+
 /**
  * Checks and re-prompts for camera permissions if denied
  * @returns Boolean indicating camera permission authorization
@@ -49,30 +54,165 @@ export default function VisionCameraExample() {
     // Optional minimum/maximum object detection size
     const [minObjectSize, setMinObjectSize] = useState(null);
     const [maxObjectSize, setMaxObjectSize] = useState(null);
-	const device = useCameraDevice("back");
-	const [ready, setReady] = useState(false);
+	const device = useCameraDevice("back", {
+        // Add a key that changes when focus changes to force recreation
+        physicalDevices: isFocused ? ['back'] : []
+    });;
+	const [permissionsReady, setPermissionsReady] = useState(false);
     const { hasPermission, requestPermission } = useCameraPermission();
 	// Get screen dimensions
 	const screenWidth = Dimensions.get('screen').width;
   	const screenHeight = Dimensions.get('screen').height;
-	// Store frame dimensions
-    // Reanimated shared values (for UI thread)
-	const { tapPosition, frameDimension, pixelData } = global;
-	// console.log(tapPosition);
-	// console.log(frameDimension);
-	// console.log(pixelData);
-	// Screen Tap Detection
 
     const { resize } = useResizePlugin();
+    const intervalId = useRef(null);
+    const isFocused = useIsFocused(); // Detect if this screen is in focus
+    const [cameraActive, setCameraActive] = useState(true); // Control camera based on focus
+
+    // Function to convert color format
+    /**
+     * 
+     * @param {Filter} bounds 
+     * @param {Format} format 
+     * @returns 
+     */
+    function applyFormat(bounds, format) {
+        const boundaries = ['lower', 'upper'];
+
+        // Verify the color format is valid
+        if ("BGR" === format) {
+            for (let key in boundaries) {
+                const [r, g, b] = bounds[key];
+                bounds[key] = [b, g, r];
+            }
+        }
+        else if ("HLS" === format) {
+            for (let key of boundaries) {
+                const [h, s, l] = convert.rgb.hsl(bounds[key]);
+                bounds[key] = [h, l, s];
+            }
+        }
+        else {
+            for (let key of boundaries) {
+                bounds[key] = convert.rgb[format.toLowerCase()](bounds[key]);
+            }
+        }
+
+        // console.log(bounds);
+
+        // Record the format
+        bounds.format = format;
+
+        return bounds;
+    }
 
     useEffect(() => {
 		// Request camera permissions on-load
         requestPermission().then(() => {
 			console.log("Requesting Ready = ", hasPermission);
-			requestAnimationFrame(() => setReady(hasPermission));
+			requestAnimationFrame(() => setPermissionsReady(hasPermission));
 		})
     }, [requestPermission, hasPermission]);
 
+    // Pause/resume camera and cleanup when screen focus changes
+    useEffect(() => {
+        if (isFocused) {
+            // Screen came into focus - activate camera
+            if (device) {
+                setCameraActive(true);
+                console.log("Screen focused - camera active");
+            }
+        } else {
+            // Screen went out of focus - deactivate camera and clean up
+            setCameraActive(false);
+            
+            if (device) {
+                device.close?.();
+            }
+            
+            console.log("Screen unfocused - camera paused");
+            
+            requestAnimationFrame(() => {
+                if (intervalId.current) {
+                    console.log("Cleared Update Interval 1: ", intervalId);
+                    clearInterval(intervalId.current);
+                    intervalId.current = null;
+                }
+            });
+            
+            // Clear OpenCV buffers when losing focus to free memory
+            OpenCV.clearBuffers();
+            
+            // Reset tap position
+            setTapPosition(null);
+            // Reset color filter
+            setColorFilter(null);
+        }
+    }, [isFocused, device]);
+
+    // Setup the periodic color format/filter update interval
+    // Only run when screen is in focus
+    useEffect(() => {
+
+        if (!isFocused && intervalId.current) {
+            console.log("Clearing Update Interval 3: ", intervalId);
+            clearInterval(intervalId.current);
+            intervalId.current = undefined;
+            return;
+        }
+        else if (!isFocused) return;
+
+        console.log("Creating Update Interval");
+
+        // Screen is in focus - start the interval
+        let id = setInterval(async () => {
+            /**
+             * UPDATE Color Format
+             */
+            const newFormat = await getColorFormat();
+
+            // Update the shared value, since a new format was applied
+            // Use absolute comparison, since format is a string
+            if (colorFormat.value !== newFormat) {
+                console.log("Updating FORMAT from " + colorFormat.value + " to " + newFormat);
+                colorFormat.value = newFormat;
+            }
+
+            /**
+             * UPDATE Color Filter
+             */
+
+            // Get the accurate filter value
+            const newFilter = await getColorFilter(); //new Filter([40, 40, 40], [70, 70, 70]); //
+
+            // A new filter was applied
+            if (newFilter.format == null) {
+                console.log("Original Filter: ", colorFilter.value)
+                console.log("Updating FILTER with format " + colorFormat.value);
+                let format = applyFormat(newFilter, colorFormat.value);
+                    console.log(format);
+                    setColorFilter(format);
+            }
+            // The new filter has been formatted, but its value has yet
+            //  to be assigned to the JS-thread 'colorFilter' variable
+            else if (Filter(colorFilter.value) != newFilter) { 
+                console.log("Updating FILTER directly");
+                colorFilter.value = newFilter;
+                console.log("Current Filter: ", colorFilter.value);
+            }
+        }, 2000);
+    
+        intervalId.current = id;
+
+        console.log("Created Update Interval: ", intervalId);
+        
+        return () => {
+            console.log("Clearing Update Interval 4: ", intervalId);
+            clearInterval(id);
+            intervalId.current = null;
+        };
+    }, [isFocused, intervalId]);
+    
     function getPixelRGB(buf, x, y, width) {
     "worklet";
         // Ensure buf is a Uint8Array
@@ -84,14 +224,30 @@ export default function VisionCameraExample() {
         // Bounds check
         if (i < 0 || i + 2 >= data.length) {
             console.log(`Pixel out of bounds: x=${x}, y=${y}, width=${width}, index=${i}, bufferLength=${data.length}`);
-            return { r: 0, g: 0, b: 0 };
+            return [ 0, 0, 0 ];
         }
         
-        return {
-            r: data[i],
-            g: data[i + 1],
-            b: data[i + 2]
-        };
+        return [ 
+            data[i],
+            data[i + 1],
+            data[i + 2]
+        ];
+    }
+
+    /**
+     * Converts the target color to a range with upper and lower RGB limits based on COLOR_THRESHOLD
+     * @param {import("color-convert").RGB} targetColor - The target RGB color array to filter by
+     * @param {*} min The lowest possible RGB value
+     * @param {*} max The largest possible RGB value
+     * @returns {Object} The lower and upper range boundaries
+     */
+    function makeRange(color, min=0, max=255) {
+        "worklet";
+        
+        const lower = color.map(v => Math.max(min, v - COLOR_THRESHOLD));
+        const upper = color.map(v => Math.min(max, v + COLOR_THRESHOLD));
+
+        return { lower: lower, upper: upper };
     }
 
     const frameProcessor = useSkiaFrameProcessor(
@@ -131,12 +287,15 @@ export default function VisionCameraExample() {
         // Contains the processed image
         const dst = OpenCV.createObject(ObjectType.Mat, 0, 0, DataTypes.CV_8U);
 
-        // Color Lower and Upper bounds -- The range of acceptable values for the detected colors
-        const lowerBound = OpenCV.createObject(ObjectType.Scalar, 6, 0.63*255, 0.57*255); // 30 60 60
-        const upperBound = OpenCV.createObject(ObjectType.Scalar, 15, 0.92*255, 0.8*255); // 50 255 255
         // Change the color format, using the conversion codes
         // Convert from RGB to HSV
         OpenCV.invoke("cvtColor", src, dst, ColorConversionCodes.COLOR_RGB2HSV);
+
+        // Color Lower and Upper bounds -- The range of acceptable values for the detected colors
+        // Color Format: HSV
+        const lowerBound = OpenCV.createObject(ObjectType.Scalar, ...(colorFilter.value?.format ? colorFilter.value.lower : [30, 60, 60] )); // 6, 0.63*255, 0.57*255); // 30 60 60 | 6, 0.63*255, 0.57*255
+        const upperBound = OpenCV.createObject(ObjectType.Scalar, ...(colorFilter.value?.format ? colorFilter.value.lower : [50, 255, 255] )); // 15, 0.92*255, 0.8*255); // 50 255 255 | 15, 0.92*255, 0.8*255
+        
         // Detect colors between the given range
         OpenCV.invoke("inRange", dst, lowerBound, upperBound, dst);
 
@@ -196,20 +355,32 @@ export default function VisionCameraExample() {
             );
         }
 
-        OpenCV.clearBuffers(); // REMEMBER TO CLEAN        
+        OpenCV.clearBuffers(); // REMEMBER TO CLEAN
 
-        getTapPosition().then((tap) => {
-            if (tap == null) return;
+        const tap = tapPosition.value;
 
-            const scaledX = Math.floor(tap.x / scale);
-            const scaledY = Math.floor(tap.y / scale);
+        if (tap == null) return;
 
-            if (scaledX >= 0 && scaledX < width && scaledY >= 0 && scaledY < height) {
-                const color = getPixelRGB(resized, scaledX, scaledY, width);
-                setPixelData({ x: scaledX, y: scaledY, rgb: color})
-            }
-        });
-    }, []));
+        const scaledX = Math.floor(tap.x / scale);
+        const scaledY = Math.floor(tap.y / scale);
+
+        if (scaledX >= 0 && scaledX < width && scaledY >= 0 && scaledY < height) {
+            // Get the pixel color
+            const color = getPixelRGB(resized, scaledX, scaledY, width);
+            // Calculate the upper and lower range (RGB)
+            const colorRange = makeRange(color);
+            // rgb(118, 108, 97) rgb(178, 168, 157)
+            // Used for logging purposes
+            const obj = new Filter(colorRange.upper, colorRange.lower);
+            // Should be changed to "colorFilter.value = { x: scaledX, y: scaledY, rgb: color};"
+            setColorFilter(obj);
+        }
+
+        // Used for logging purposes
+        // Should be changed to "tapPosition.value = null;"
+        tapPosition.value = null;
+        console.log("Set Tap Position: ", null);
+    }, [minObjectSize, maxObjectSize, resize]));
 
     // Camera permissions haven't been requested
     if (hasPermission == null) {
@@ -246,7 +417,7 @@ export default function VisionCameraExample() {
 
 	// Not ready to mount the <Camera/> yet
 	// !-- TRUST --!
-	if (!ready) {
+	if (!permissionsReady || !cameraActive) {
 		return (
 			<View style={styles.container}>
                 <Text style={styles.permissionText}>
@@ -256,6 +427,9 @@ export default function VisionCameraExample() {
 		)
 	}
 
+    console.log("Camera Active: ", cameraActive);
+
+    // Camera ready - render the camera view
     return (
         <PaperProvider>
             {/* StyleSheet.absoluteFill OR { flex: 1 } works for Camera Full Display */}
@@ -269,7 +443,7 @@ export default function VisionCameraExample() {
                     style={StyleSheet.absoluteFill}
                     pixelFormat="yuv"
                     device={device}
-                    isActive={true}
+                    isActive={cameraActive}
                     frameProcessor={frameProcessor}
                 />
             </Pressable>
