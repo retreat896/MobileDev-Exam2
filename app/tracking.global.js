@@ -1,10 +1,5 @@
-import convert from "color-convert";
 import { Worklets } from "react-native-worklets-core";
-import Filter from "./Filter";
-import COLOR_FORMATS from './Format';
-
-//const COLOR_LOWER = convert.hsv.rgb(6, 161, 145); // rgb(30, 60, 60);
-const COLOR_TARGET = convert.hsv.rgb(11, 198, 175); // rgb(40, 157, 157);
+import ColorSpace from './ColorSpace';
 
 
 //const COLOR_UPPER = convert.hsv.rgb(15, 235, 204);// rgb(50, 255, 255);
@@ -32,14 +27,33 @@ const context = Worklets.createContext("TrackingStore");
  * 				- 
  */
 
-export const tapPosition = Worklets.createSharedValue(null);
-export const colorFormat = Worklets.createSharedValue(COLOR_FORMATS.HSV);
+export const tapPosition = Worklets.createSharedValue(new Object());
+export const colorFormat = Worklets.createSharedValue(null);
+export const selectedColor = Worklets.createSharedValue(new Array()); // 92, 108, 53
+export const colorFilter = Worklets.createSharedValue(new Object());
 
-export const colorFilter = Worklets.createSharedValue(null);
+const rgba = (r, g, b) => {
+	return [r, g, b];
+}
 
-context.runAsync(() => {
-	"worklet";
-})
+export function resetToDefaults() {
+	// Convert to null because of initialization (allows IDE to display *.value as type)
+	if (typeof colorFormat.value == 'object') colorFormat.value = null;
+	if (typeof selectedColor.value == 'object') selectedColor.value = null;
+	if (typeof colorFilter.value == 'object') colorFilter.value = null;
+
+	
+	tapPosition.value = null; // Always null
+	console.log("Reset Tap Position: ", JSON.stringify(tapPosition.value));
+	colorFormat.value = !colorFormat.value ? ColorSpace.FORMAT.HLS : colorFormat.value; // Default: HSV
+	console.log("Reset Color-Format: ", colorFormat.value);
+	selectedColor.value = !selectedColor.value ? rgba(224, 138, 9, 1) : selectedColor.value; // Default: Green
+	console.log("Reset Selected Color: ", JSON.stringify(selectedColor.value));
+	colorFilter.value = ColorSpace.ColorClosestToRGB(selectedColor.value, colorFormat.value); // Re-apply filter
+	console.log("Reset Color-Filter: ", JSON.stringify(colorFilter.value));
+}
+
+resetToDefaults();
 
 const THROTTLED = 50; // Milliseconds between calls to throttle
 const timeLastSent = {}; // Record context interactions
@@ -52,7 +66,7 @@ const timeLastSent = {}; // Record context interactions
 function isThrottled(property) {
     "worklet";
 
-    const previous = timeLastSent[property];
+    const previous = timeLastSent[property]; 
 
     // Compare the current time to the most
     //  recent time-last-sent interaction
@@ -81,50 +95,29 @@ export const setTapPosition = context.createRunAsync((value) => {
 
 /**
  * Needed when accessing through JS-Thread ONLY 
- * @returns the value of tap-position
+ * @returns {Array} the value of selected-color
  */
-export const getTapPosition = context.createRunAsync(() => {
-    "worklet";
+export const getSelectedColor = context.createRunAsync(() => {
+	"worklet";
 
-    return tapPosition.value;
-});
-
-const defaultFilter = new Filter([30, 60, 60], [50, 255, 255]);
+	return selectedColor;
+})
 
 /**
- * Needed when accessing through JS-Thread ONLY
- * @returns {Filter} The upper and lower color filter values
- */
-export const getColorFilter = context.createRunAsync(() => {
-    "worklet";
-
-	if (!colorFilter.value) {
-		defaultFilter.setFormat(colorFormat.value); // Apply the format on each return (since might be different)
-		colorFilter.value = defaultFilter; // Assign default to colorFilter
-	}
-
-	return colorFilter.value;
-});
-
-/**
- * Update the color filter with a target color and calculate RGB boundaries
- * Only updates if the value has changed and is not throttled
- * @param {{ upper: import("color-convert").RGB, lower: import("color-convert").RGB }} value The target color filter object with upper and lower RGB boundaries
+ * Update the selected color with the provided value
+ * @param {import("color-convert").RGB} value An RGB color
  * @returns {void}
  */
-export const setColorFilter = context.createRunAsync((value) => {
-    "worklet";
+export const setSelectedColor = context.createRunAsync((value) => {
+	"worklet";
 
-	// console.log("Filter: ");
-	// console.log(value);
+	// If no-chance or throttled, don't update
+	if (value == selectedColor.value || isThrottled("selectedColor")) return;
+
 	
-	// If no-change or throttled, don't update
-	if (value == colorFilter.value || isThrottled("colorFilter")) return;
-
-	// console.log("Old Color Filter: ", colorFilter.value);
-    colorFilter.value = value;
-	console.log("Set Color Filter: ", colorFilter.value);
-});
+	selectedColor.value = value;
+	console.log("Set Selected Color: ", String(selectedColor.value));
+})
 
 /**
  * Needed when accessing through JS-Thread ONLY
@@ -132,7 +125,7 @@ export const setColorFilter = context.createRunAsync((value) => {
  */
 export const getColorFormat = context.createRunAsync(() => {
     "worklet";
-	return colorFormat.value;
+	return colorFormat;
 });
 
 /**
@@ -148,7 +141,7 @@ export const setColorFormat = context.createRunAsync((type) => {
 	if (type == colorFormat.value || isThrottled("colorFormat")) return;
 
 	// The given type is not valid
-	if (!COLOR_FORMATS.from(type)) return;
+	if (!ColorSpace.FORMAT.from(type)) return;
 
 	// console.log("Old Color Format: ", colorFormat.value);
     colorFormat.value = type;
