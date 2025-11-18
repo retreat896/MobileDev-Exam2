@@ -14,7 +14,7 @@ export default function Layout() {
         }}
       />
       <Tabs.Screen
-        name="tracking"
+        name="new_tracking"
         options={{
           title: 'Tracking',
           tabBarIcon: ({ color }) => (
