@@ -13,5 +13,5 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
-, "app/tracking.jsx", "app/index.jsx", "app/_layout.jsx"  ]
+, "app/tracking.tsx", "app/index.js", "app/_layout.jsx", "app/frameProcessor.js", "app/frameProcessor.js"  ]
 }
