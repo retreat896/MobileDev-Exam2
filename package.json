@@ -6,7 +6,7 @@
     "postinstall": "patch-package",
     "build-apk": "set EAS_SKIP_AUTO_FINGERPRINT=1 && eas build --platform android --profile development",
     "build-gradle": "npx expo prebuild --clean && cd android && (IF EXIST \\app\\build rmdir /S /Q \\app\\build) && (IF EXIST .gradle rmdir /S /Q .gradle) && gradlew clean --stacktrace",
-    "start": "expo start",
+    "start": "expo start --tunnel",
     "update-dependencies": "npm run reinstall-packages && npm run build-gradle && npm run start",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
@@ -56,9 +56,6 @@
     "vision-camera-resize-plugin": "^3.2.0"
   },
   "devDependencies": {
-    "@babel/cli": "^7.28.3",
-    "@babel/core": "^7.28.5",
-    "@babel/preset-env": "^7.28.5",
     "@types/react": "~19.0.10",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~9.2.0",

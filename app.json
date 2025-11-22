@@ -7,7 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "mobiledevexam2",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
@@ -35,8 +34,7 @@
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
-      },
-      "edgeToEdgeEnabled": true
+      }
     },
     "web": {
       "output": "static",
@@ -45,18 +43,18 @@
     "plugins": [
       [
         "expo-build-properties",
-          {
-            "android": {
-              "minSdkVersion": 26,
-              "compileSdkVersion": 35,
-              "targetSdkVersion": 35,
-              "ndkVersion": "27.1.12297006",
-              "buildToolsVersion": "35.0.0"
-            },
-            "ios": {
-              "deploymentTarget": "17.1" // Example for iOS deployment target
-            }
+        {
+          "android": {
+            "minSdkVersion": 26,
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "ndkVersion": "27.1.12297006",
+            "buildToolsVersion": "35.0.0"
+          },
+          "ios": {
+            "deploymentTarget": "17.1"
           }
+        }
       ],
       "expo-router",
       [
@@ -102,8 +100,7 @@
           "enable-frame-processors": true
         }
       ],
-      "expo-font",
-      "expo-web-browser"
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -112,7 +109,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "99f38ecc-bf94-44a7-a975-fab1b17480a9"
+        "projectId": "c3154587-580f-48d8-8ba5-c3d0a5f94c02"
       }
     }
   }
