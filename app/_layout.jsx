@@ -14,11 +14,29 @@ export default function Layout() {
         }}
       />
       <Tabs.Screen
-        name="new_tracking"
+        name="gallery"
         options={{
-          title: 'Tracking',
+          title: 'Gallery',
+          tabBarIcon: ({ color }) => (
+            <MaterialCommunityIcons name="view-gallery-outline" size={24} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="tracking"
+        options={{
+          title: 'Tracking Colors',
           tabBarIcon: ({ color }) => (
             <MaterialCommunityIcons name="eye" size={24} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="about"
+        options={{
+          title: 'Authors',
+          tabBarIcon: ({ color }) => (
+            <MaterialCommunityIcons name="information-outline" size={24} color={color} />
           ),
         }}
       />

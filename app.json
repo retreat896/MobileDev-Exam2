@@ -45,6 +45,7 @@
         "expo-build-properties",
         {
           "android": {
+            "kotlinVersion": "2.1.20",
             "minSdkVersion": 26,
             "compileSdkVersion": 35,
             "targetSdkVersion": 35,
@@ -53,15 +54,6 @@
           },
           "ios": {
             "deploymentTarget": "17.1"
-          }
-        }
-      ],
-      "expo-router",
-      [
-        "expo-build-properties",
-        {
-          "android": {
-            "minSdkVersion": 26
           }
         }
       ],
@@ -100,7 +92,8 @@
           "enable-frame-processors": true
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-web-browser",
     ],
     "experiments": {
       "typedRoutes": true,

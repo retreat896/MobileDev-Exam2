@@ -1,5 +1,5 @@
 import { Worklets } from "react-native-worklets-core";
-import ColorSpace from './ColorSpace';
+import ColorSpace from '../modules/ColorSpace';
 
 
 //const COLOR_UPPER = convert.hsv.rgb(15, 235, 204);// rgb(50, 255, 255);
@@ -45,7 +45,7 @@ export function resetToDefaults() {
 	
 	tapPosition.value = null; // Always null
 	console.log("Reset Tap Position: ", JSON.stringify(tapPosition.value));
-	colorFormat.value = !colorFormat.value ? ColorSpace.FORMAT.HLS : colorFormat.value; // Default: HSV
+	colorFormat.value = !colorFormat.value ? ColorSpace.FORMAT.HSV : colorFormat.value; // Default: HSV
 	console.log("Reset Color-Format: ", colorFormat.value);
 	selectedColor.value = !selectedColor.value ? rgba(224, 138, 9, 1) : selectedColor.value; // Default: Green
 	console.log("Reset Selected Color: ", JSON.stringify(selectedColor.value));

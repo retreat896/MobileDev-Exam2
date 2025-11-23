@@ -1,7 +1,10 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useIsFocused } from '@react-navigation/native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as MediaLibrary from 'expo-media-library';
-import { useRef, useState } from 'react';
+import { useRouter } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import {
 	Image,
 	StyleSheet,
@@ -10,15 +13,18 @@ import {
 	View
 } from 'react-native';
 import { Button, Text } from 'react-native-paper';
-import MediaBar from '../components/MediaBar';
+import { GALLERY_STORAGE_KEY } from './config';
+ 
+// AsyncStorage.setItem(GALLERY_STORAGE_KEY, '').then(() => console.log("RESET"));
 
 export default function CaptureScreen() {
+	const isFocused = useIsFocused(); // Detect if this screen is in focus
 	const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 	const [mediaPermission, requestMediaPermission] = MediaLibrary.usePermissions();
-	const [photos, setPhotos] = useState([]);
+	const [lastCaptureUri, setLastCapture] = useState(null);
 	const [facing, setFacing] = useState('back');
-	const [galleryDisplay, setGalleryDisplay] = useState(false);
 	const cameraRef = useRef(null);
+	const router = useRouter();
 
 	const takePhoto = async () => {
 		if (cameraRef.current) {
@@ -32,9 +38,27 @@ export default function CaptureScreen() {
 				
 				// Save to media library
 				const asset = await MediaLibrary.createAssetAsync(photo.uri);
+
+				// Stringified list of all previous captures
+				const oldPhotos = await AsyncStorage.getItem(GALLERY_STORAGE_KEY);
+				// Array to hold all total captures
+				let allPhotos = [];
 				
-				// Add to state for display
-				setPhotos(prev => [asset, ...prev]);
+				// Photos have been previously saved
+				if (oldPhotos) {
+					// Convert from AsyncStorage string to an array
+					allPhotos = JSON.parse(oldPhotos);
+				}
+
+				// Add the asset ID at the top of the list
+				// So newer items appear on top
+				allPhotos.unshift(asset.id);
+
+				// Add the photo-list to storage
+				await AsyncStorage.setItem(GALLERY_STORAGE_KEY, JSON.stringify(allPhotos));
+
+				// Update the gallery thumbnail
+				setLastCapture(asset.uri);
 				
 				ToastAndroid.showWithGravity("Photo saved to gallery!", 1000, ToastAndroid.TOP);
 			} catch (error) {
@@ -43,25 +67,37 @@ export default function CaptureScreen() {
 		}
 	};
 
-	// New function to handle removing a single photo
-	const removePhoto = async (...assets) => {
-		console.log("Deleting " + assets.length + " assets");
-		
-		// Filter all photos not from 'assets'
-		const updatedPhotos = photos.filter(photo => !assets.includes(photo));
+	// Return the last captured URI
+	const updateLastCapture = async () => {
+		// Get the captured photos
+		let allPhotos = await AsyncStorage.getItem(GALLERY_STORAGE_KEY);
 
-		// Update the photos list
-		setPhotos(updatedPhotos);
-		
-		// Delete all passed assets from the filesystem
-		await MediaLibrary.deleteAssetsAsync(assets);
-		
-		ToastAndroid.showWithGravity("Deleted " + assets.length + " assets.", ToastAndroid.LONG, ToastAndroid.TOP);
+		console.log(allPhotos);
+		console.log("WTF")
 
-		if (galleryDisplay && updatedPhotos.length == 0) {
-			setGalleryDisplay(false);
+		// Do nothing if no previous photos
+		if (!allPhotos || allPhotos === '') {
+			setLastCapture(null);
+			return;
+		};
+
+		allPhotos = JSON.parse(allPhotos);
+
+		if (allPhotos.length == 0) {
+			setLastCapture(null);
+			return;
 		}
-	};
+
+		const lastAsset = await MediaLibrary.getAssetInfoAsync(allPhotos[0]);
+
+		// Return the top image
+		setLastCapture(lastAsset.uri);
+	}
+
+	// Reload the gallery each time the screen is refocused
+	useEffect(() => {
+		if (isFocused) updateLastCapture();
+	}, [isFocused]);
 
 	const toggleCameraFacing = () => {
 		setFacing(current => (current === 'back' ? 'front' : 'back'));
@@ -86,21 +122,6 @@ export default function CaptureScreen() {
 		);
 	}
 
-	if (galleryDisplay && photos.length > 0) {
-		return (
-			/* Photo Gallery - Replace with MediaBar */
-			<View style={styles.galleryContainer}>
-				<MediaBar 
-					media={photos}
-					columns={4}
-					thumbnailSize={100}
-					removeItems={removePhoto}
-					onExit={() => setGalleryDisplay(false)}
-				/>
-			</View>
-		);
-	}
-
 	return (
 		<View style={styles.container}>
 			{/* Camera Preview */}
@@ -117,13 +138,12 @@ export default function CaptureScreen() {
 
 			<View style={styles.row}>
 				{/* Photo Gallery Button */}
-				{ !galleryDisplay && photos.length > 0 && (
+				{ lastCaptureUri && (
 					<TouchableOpacity
-						style={styles.galleryPreview}	
-
-						onPress={() => setGalleryDisplay(true)}
+						style={styles.galleryPreview}
+						onPress={() => router.push("./gallery")}
 					>
-						<Image source={{ uri: photos[0].uri }} style={styles.galleryPreviewImage} />
+						<Image source={{ uri: lastCaptureUri }} style={styles.galleryPreviewImage} />
 					</TouchableOpacity>
 				)}
 
